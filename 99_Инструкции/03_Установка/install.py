@@ -25,7 +25,12 @@ def git(root: Path, *args: str) -> str:
 
 
 def digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+    return hashlib.sha256(normalized(data)).hexdigest()
+
+
+def normalized(data: bytes) -> bytes:
+    # Git autocrlf may change line endings after a Windows clone.
+    return data.replace(b'\r\n', b'\n')
 
 
 def safe_path(root: Path, relative: str) -> Path:
@@ -129,7 +134,7 @@ def build_plan(source: Path, project: Path) -> tuple[dict[Path, bytes], str]:
             raise ValueError('Incomplete role: ' + template.name)
         target_relative = '.codex/agents/' + template.name
         target = safe_path(project, target_relative)
-        if target.exists() and target.read_bytes() != data:
+        if target.exists() and normalized(target.read_bytes()) != normalized(data):
             previous_hash = old_lock.get('roles', {}).get(target_relative)
             if not previous_hash or digest(target.read_bytes()) != previous_hash:
                 raise ValueError('Role has existing/user changes: ' + target_relative)
@@ -185,7 +190,8 @@ def write_atomic(path: Path, data: bytes) -> None:
 
 def install(source: Path, project: Path, check: bool = False) -> list[str]:
     plan, commit = build_plan(source, project)
-    changed = {p: data for p, data in plan.items() if not p.exists() or p.read_bytes() != data}
+    changed = {p: data for p, data in plan.items()
+               if not p.exists() or normalized(p.read_bytes()) != normalized(data)}
     if check:
         if changed:
             raise ValueError('Installation missing or differs: ' + ', '.join(p.name for p in changed))

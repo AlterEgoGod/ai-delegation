@@ -151,6 +151,15 @@ class InstallTests(unittest.TestCase):
             installer.install(self.source, self.project)
         self.assertFalse((self.project / '.codex').exists())
 
+    def test_windows_checkout_line_endings(self):
+        installer.install(self.source, self.project)
+        for relative, data in self.snapshot().items():
+            (self.project / relative).write_bytes(data.replace(b'\n', b'\r\n'))
+        before = self.snapshot()
+        installer.install(self.source, self.project, check=True)
+        self.assertEqual(installer.install(self.source, self.project), [])
+        self.assertEqual(before, self.snapshot())
+
 
 if __name__ == '__main__':
     unittest.main()
